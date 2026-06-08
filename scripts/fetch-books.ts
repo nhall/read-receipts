@@ -26,6 +26,9 @@ const PAGE_SIZE = 100;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = resolve(__dirname, '../src/data/books.json');
+// public/ assets are copied verbatim by Vite, so this lands at
+// /books.json on the deployed site — a stable URL for the shields.io badges.
+const PUBLIC_OUTPUT_PATH = resolve(__dirname, '../public/books.json');
 
 // ---------------------------------------------------------------------------
 // GraphQL query
@@ -268,16 +271,22 @@ async function main() {
     return (b.dateAdded ?? '').localeCompare(a.dateAdded ?? '');
   });
 
+  const now = new Date();
   const out: BooksData = {
-    generatedAt: new Date().toISOString(),
+    generatedAt: now.toISOString(),
+    generatedAtDate: now.toISOString().slice(0, 10),
     count: read.length,
     books: read,
     currentlyReading: reading,
   };
 
+  const json = JSON.stringify(out, null, 2) + '\n';
   await mkdir(dirname(OUTPUT_PATH), { recursive: true });
-  await writeFile(OUTPUT_PATH, JSON.stringify(out, null, 2) + '\n', 'utf8');
+  await writeFile(OUTPUT_PATH, json, 'utf8');
+  await mkdir(dirname(PUBLIC_OUTPUT_PATH), { recursive: true });
+  await writeFile(PUBLIC_OUTPUT_PATH, json, 'utf8');
   console.log(`Wrote ${read.length} read + ${reading.length} currently reading to ${OUTPUT_PATH}`);
+  console.log(`Also wrote to ${PUBLIC_OUTPUT_PATH} for badge consumption.`);
   console.log(
     `cached_tags categories seen: ${Array.from(seenCategories).sort().join(', ') || '(none)'}`,
   );
