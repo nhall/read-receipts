@@ -37,6 +37,8 @@ export type Book = {
 export type BooksData = {
   /** ISO datetime the fetch script ran. */
   generatedAt: string;
+  /** YYYY-MM-DD slice of generatedAt; consumed by the shields.io "last refresh" badge. */
+  generatedAtDate: string;
   /** Total number of read books (status_id 3 only). */
   count: number;
   /** Finished books, newest dateRead first. */
