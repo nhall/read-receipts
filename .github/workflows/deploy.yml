@@ -1,0 +1,71 @@
+name: Build and Deploy
+
+# Triggers:
+# - push to main: rebuild + redeploy on code change
+# - schedule: daily data refresh, picks up any new books from Hardcover
+# - workflow_dispatch: manual trigger from the Actions tab
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 12:17 UTC daily (off-the-hour to spread load per GitHub recommendation)
+    - cron: '17 12 * * *'
+  workflow_dispatch:
+
+# Pages deploy needs id-token (OIDC) + pages write.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Don't cancel an in-flight deploy — let it finish so a partial deploy
+# can't leave the site half-updated.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm run build` runs fetch → tsc -b → vite build, so the JSON in
+      # the repo is just a stub — every deploy ships with fresh data.
+      - name: Fetch data and build
+        env:
+          HARDCOVER_API_TOKEN: ${{ secrets.HARDCOVER_API_TOKEN }}
+        run: npm run build
+
+      - name: Surface book counts in the run summary
+        run: |
+          node -e '
+            const d = require("./src/data/books.json");
+            console.log(`Built with ${d.count} read books + ${d.currentlyReading?.length ?? 0} currently reading.`);
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
