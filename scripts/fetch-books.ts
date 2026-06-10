@@ -10,7 +10,7 @@
  * Or:        tsx scripts/fetch-books.ts
  */
 
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config as loadEnv } from 'dotenv';
@@ -292,7 +292,16 @@ async function main() {
   );
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
-  process.exit(1);
+main().catch(async (err) => {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn(`⚠️  Hardcover fetch failed: ${message}`);
+  console.warn('Falling back to cached src/data/books.json — deploying with stale data.');
+  try {
+    await readFile(OUTPUT_PATH, 'utf8');
+    console.warn('Cached data found — build will continue with existing books.json.');
+    process.exit(0);
+  } catch {
+    console.error('No cached books.json found and API is unreachable. Cannot build.');
+    process.exit(1);
+  }
 });
