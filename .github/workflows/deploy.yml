@@ -59,6 +59,32 @@ jobs:
         with:
           path: dist
 
+  # GitHub disables scheduled workflows after 60 days without a commit.
+  # On scheduled runs, push an empty commit once the last one is 45+ days
+  # old. Pushes made with GITHUB_TOKEN don't trigger the push event, so
+  # this can't loop back into another deploy.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Commit if the repo has gone quiet
+        run: |
+          last=$(git log -1 --format=%ct)
+          age_days=$(( ($(date +%s) - last) / 86400 ))
+          echo "Last commit was ${age_days} days ago."
+          if [ "$age_days" -lt 45 ]; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m 'chore: keep scheduled workflow active'
+          git push
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
